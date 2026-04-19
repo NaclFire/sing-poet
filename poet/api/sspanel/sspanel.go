@@ -174,6 +174,10 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 			nodeInfo, err = c.ParseSSNodeResponse(nodeInfoResponse)
 		case "Shadowsocks-Plugin":
 			nodeInfo, err = c.ParseSSPluginNodeResponse(nodeInfoResponse)
+		case "AnyTls":
+			nodeInfo, err = c.ParseAnyTlsNodeResponse(nodeInfoResponse)
+		case "TUIC":
+			nodeInfo, err = c.ParseTUICNodeResponse(nodeInfoResponse)
 		default:
 			return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
 		}
@@ -645,6 +649,146 @@ func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *NodeInfoResponse) 
 	return nodeInfo, nil
 }
 
+// ParseAnyTlsNodeResponse parse the response for the given node info format
+func (c *APIClient) ParseAnyTlsNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
+	// AnyTLS configuration parsing, similar to Trojan but for AnyTLS protocol
+	var p, host, outsidePort, insidePort, transportProtocol, serviceName string
+	var speedLimit uint64 = 0
+
+	if nodeInfoResponse.RawServerString == "" {
+		return nil, fmt.Errorf("no server info in response")
+	}
+	if result := firstPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		outsidePort = result[1]
+	}
+	if result := secondPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		insidePort = result[1]
+	}
+	if result := hostRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		host = result[1]
+	}
+
+	if insidePort != "" {
+		p = insidePort
+	} else {
+		p = outsidePort
+	}
+
+	parsedPort, err := strconv.ParseInt(p, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	port := uint32(parsedPort)
+
+	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
+	extraServerConf := strings.Split(serverConf[1], "|")
+	transportProtocol = "tcp"
+	serviceName = ""
+	for _, item := range extraServerConf {
+		conf := strings.Split(item, "=")
+		key := conf[0]
+		if key == "" {
+			continue
+		}
+		value := conf[1]
+		switch key {
+		case "grpc":
+			transportProtocol = "grpc"
+		case "servicename":
+			serviceName = value
+		}
+	}
+
+	if c.SpeedLimit > 0 {
+		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
+	} else {
+		speedLimit = uint64((nodeInfoResponse.SpeedLimit * 1000000) / 8)
+	}
+	// Create GeneralNodeInfo
+	nodeInfo := &api.NodeInfo{
+		NodeType:          c.NodeType,
+		NodeID:            c.NodeID,
+		Port:              port,
+		SpeedLimit:        speedLimit,
+		TransportProtocol: transportProtocol,
+		EnableTLS:         true, // AnyTLS uses TLS
+		Host:              host,
+		ServiceName:       serviceName,
+	}
+
+	return nodeInfo, nil
+}
+
+// ParseTUICNodeResponse parse the response for the given node info format
+func (c *APIClient) ParseTUICNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
+	// TUIC configuration parsing, similar to Trojan but for TUIC protocol (UDP-based)
+	var p, host, outsidePort, insidePort, transportProtocol, serviceName string
+	var speedLimit uint64 = 0
+
+	if nodeInfoResponse.RawServerString == "" {
+		return nil, fmt.Errorf("no server info in response")
+	}
+	if result := firstPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		outsidePort = result[1]
+	}
+	if result := secondPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		insidePort = result[1]
+	}
+	if result := hostRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
+		host = result[1]
+	}
+
+	if insidePort != "" {
+		p = insidePort
+	} else {
+		p = outsidePort
+	}
+
+	parsedPort, err := strconv.ParseInt(p, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	port := uint32(parsedPort)
+
+	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
+	extraServerConf := strings.Split(serverConf[1], "|")
+	transportProtocol = "udp" // TUIC uses UDP
+	serviceName = ""
+	for _, item := range extraServerConf {
+		conf := strings.Split(item, "=")
+		key := conf[0]
+		if key == "" {
+			continue
+		}
+		value := conf[1]
+		switch key {
+		case "grpc":
+			transportProtocol = "grpc"
+		case "servicename":
+			serviceName = value
+		}
+	}
+
+	if c.SpeedLimit > 0 {
+		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
+	} else {
+		speedLimit = uint64((nodeInfoResponse.SpeedLimit * 1000000) / 8)
+	}
+	// Create GeneralNodeInfo
+	nodeInfo := &api.NodeInfo{
+		NodeType:          c.NodeType,
+		NodeID:            c.NodeID,
+		Port:              port,
+		SpeedLimit:        speedLimit,
+		TransportProtocol: transportProtocol,
+		EnableTLS:         true, // TUIC uses TLS over QUIC
+		Host:              host,
+		ServiceName:       serviceName,
+	}
+
+	return nodeInfo, nil
+}
+
 // ParseUserListResponse parse the response for the given node info format
 func (c *APIClient) ParseUserListResponse(userInfoResponse *[]UserResponse) (*[]api.UserInfo, error) {
 	c.access.Lock()
@@ -772,6 +916,9 @@ func (c *APIClient) ParseSSPanelNodeInfo(nodeInfoResponse *NodeInfoResponse) (*a
 		transportProtocol = "udp"
 	case "Hysteria":
 		transportProtocol = "udp"
+	case "AnyTls":
+		enableTLS = true
+		transportProtocol = "tcp"
 	}
 
 	// parse reality config
