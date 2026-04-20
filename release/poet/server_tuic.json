@@ -1,0 +1,75 @@
+{
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "timestamp": true,
+    "output": "lumberjack",
+    "filename": "/var/log/sing-poet-tuic.log",
+    "maxsize": 20,
+    "maxbackups": 5,
+    "maxage": 14
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "google-tls",
+        "type": "tls",
+        "server": "dns.google",
+        "domain_resolver": "dns-local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ],
+    "disable_cache": false,
+    "disable_expire": false
+  },
+  "inbounds": [
+    {
+      "type": "tuic",
+      "tag": "tuic-in",
+      "listen": "::",
+      "listen_port": 10000,
+      "users": [
+        {
+          "name": "sekai",
+          "uuid": "059032A9-7D40-4A96-9BB1-36823D848068",
+          "password": "hello"
+        }
+      ],
+      "congestion_control": "cubic",
+      "auth_timeout": "3s",
+      "zero_rtt_handshake": false,
+      "heartbeat": "10s",
+      "tls": {
+        "certificate": "/etc/sing-poet/cert.pem",
+        "private_key": "/etc/sing-poet/key.pem"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "inbound": "tuic-in",
+        "outbound": "direct"
+      }
+    ],
+    "default_domain_resolver": {
+      "server": "google-tls",
+      "strategy": "prefer_ipv4"
+    },
+    "final": "direct",
+    "auto_detect_interface": true
+  }
+}
