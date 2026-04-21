@@ -43,8 +43,9 @@
       "zero_rtt_handshake": false,
       "heartbeat": "10s",
       "tls": {
-        "certificate": "/etc/sing-poet/cert.pem",
-        "private_key": "/etc/sing-poet/key.pem"
+        "enabled": true,
+        "certificate_path": "/etc/sing-poet/cert.pem",
+        "key_path": "/etc/sing-poet/key.pem"
       }
     }
   ],

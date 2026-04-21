@@ -11,6 +11,8 @@ type NodeInfoResponse struct {
 	Sort            int             `json:"sort"`
 	RawServerString string          `json:"server"`
 	Type            string          `json:"type"`
+	Method          string          `json:"method"`
+	ServerKey       string          `json:"server_key"`
 	CustomConfig    json.RawMessage `json:"custom_config"`
 	Version         string          `json:"version"`
 }
@@ -42,7 +44,7 @@ type UserResponse struct {
 	Port        uint32  `json:"port"`
 	Method      string  `json:"method"`
 	SpeedLimit  float64 `json:"node_speedlimit"`
-	DeviceLimit int     `json:"node_iplimit"`
+	DeviceLimit int     `json:"node_connector"`
 	UUID        string  `json:"uuid"`
 	AliveIP     int     `json:"alive_ip"`
 }

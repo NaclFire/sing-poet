@@ -383,10 +383,15 @@ func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 
 // ParseV2rayNodeResponse parse the response for the given node info format
 func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
-	var enableTLS bool
-	var path, host, transportProtocol, serviceName, HeaderType string
+	var enableTLS, enableVless, enableREALITY bool
+	var path, host, transportProtocol, serviceName, HeaderType, flow string
 	var header json.RawMessage
 	var speedLimit uint64 = 0
+	type RealityMethod struct {
+		PrivateKey string `json:"private_key"`
+		Dest       string `json:"dest"`
+		ShortId    string `json:"short_id"`
+	}
 	if nodeInfoResponse.RawServerString == "" {
 		return nil, fmt.Errorf("no server info in response")
 	}
@@ -410,6 +415,9 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 		switch value {
 		case "tls":
 			enableTLS = true
+		case "reality":
+			enableREALITY = true
+			transportProtocol = "tcp"
 		default:
 			if value != "" {
 				transportProtocol = value
@@ -435,6 +443,10 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 			serviceName = value
 		case "headerType":
 			HeaderType = value
+		case "enable_vless":
+			enableVless, _ = strconv.ParseBool(value)
+		case "flow":
+			flow = value
 		}
 	}
 	if c.SpeedLimit > 0 {
@@ -449,9 +461,22 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("marshal Header Type %s into config fialed: %s", header, err)
+		return nil, fmt.Errorf("marshal Header Type %s into config failed: %s", header, err)
 	}
-
+	realityConfig := new(api.REALITYConfig)
+	if nodeInfoResponse.CustomConfig != nil {
+		var realityMethod RealityMethod
+		err := json.Unmarshal([]byte(nodeInfoResponse.CustomConfig), &realityMethod)
+		if err != nil {
+			return nil, fmt.Errorf("parse reality method json failed: %s", err)
+		}
+		dest := realityMethod.Dest
+		domain := strings.Split(dest, ":")[0]
+		realityConfig.ServerNames = []string{domain}
+		realityConfig.PrivateKey = realityMethod.PrivateKey
+		realityConfig.Dest = dest
+		realityConfig.ShortIds = []string{realityMethod.ShortId}
+	}
 	// Create GeneralNodeInfo
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
@@ -463,10 +488,12 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 		EnableTLS:         enableTLS,
 		Path:              path,
 		Host:              host,
-		EnableVless:       c.EnableVless,
-		VlessFlow:         c.VlessFlow,
+		EnableVless:       enableVless,
+		VlessFlow:         flow,
 		ServiceName:       serviceName,
 		Header:            header,
+		EnableREALITY:     enableREALITY,
+		REALITYConfig:     realityConfig,
 	}
 
 	return nodeInfo, nil
@@ -474,27 +501,13 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 
 // ParseSSNodeResponse parse the response for the given node info format
 func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
-	var port uint32 = 0
 	var speedLimit uint64 = 0
-	var method string
-	path := "/mod_mu/users"
-	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
-		SetResult(&Response{}).
-		ForceContentType("application/json").
-		Get(path)
-
-	response, err := c.parseResponse(res, path, err)
+	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
+	parsedPort, err := strconv.ParseInt(serverConf[1], 10, 32)
 	if err != nil {
 		return nil, err
 	}
-
-	userListResponse := new([]UserResponse)
-
-	if err := json.Unmarshal(response.Data, userListResponse); err != nil {
-		return nil, fmt.Errorf("unmarshal %s failed: %s", reflect.TypeOf(userListResponse), err)
-	}
-
+	port := uint32(parsedPort)
 	if c.SpeedLimit > 0 {
 		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
 	} else {
@@ -506,8 +519,9 @@ func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *NodeInfoResponse) (*ap
 		NodeID:            c.NodeID,
 		Port:              port,
 		SpeedLimit:        speedLimit,
+		ServerKey:         nodeInfoResponse.ServerKey,
 		TransportProtocol: "tcp",
-		CypherMethod:      method,
+		CypherMethod:      nodeInfoResponse.Method,
 	}
 
 	return nodeInfo, nil
@@ -721,67 +735,66 @@ func (c *APIClient) ParseAnyTlsNodeResponse(nodeInfoResponse *NodeInfoResponse) 
 
 // ParseTUICNodeResponse parse the response for the given node info format
 func (c *APIClient) ParseTUICNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
-	// TUIC configuration parsing, similar to Trojan but for TUIC protocol (UDP-based)
-	var p, host, outsidePort, insidePort, transportProtocol, serviceName string
-	var speedLimit uint64 = 0
 
 	if nodeInfoResponse.RawServerString == "" {
 		return nil, fmt.Errorf("no server info in response")
 	}
-	if result := firstPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		outsidePort = result[1]
-	}
-	if result := secondPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		insidePort = result[1]
-	}
-	if result := hostRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		host = result[1]
+
+	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
+	if len(serverConf) < 2 {
+		return nil, fmt.Errorf("invalid server format")
 	}
 
-	if insidePort != "" {
-		p = insidePort
-	} else {
-		p = outsidePort
-	}
+	host := serverConf[0]
+	p := serverConf[1]
 
-	parsedPort, err := strconv.ParseInt(p, 10, 32)
+	parsedPort, err := strconv.ParseUint(p, 10, 32)
 	if err != nil {
 		return nil, err
 	}
 	port := uint32(parsedPort)
 
-	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
-	extraServerConf := strings.Split(serverConf[1], "|")
-	transportProtocol = "udp" // TUIC uses UDP
-	serviceName = ""
-	for _, item := range extraServerConf {
-		conf := strings.Split(item, "=")
-		key := conf[0]
-		if key == "" {
-			continue
-		}
-		value := conf[1]
-		switch key {
-		case "grpc":
-			transportProtocol = "grpc"
-		case "servicename":
-			serviceName = value
+	transportProtocol := "udp"
+	serviceName := ""
+
+	// parse extra config
+	if len(serverConf) > 2 {
+		extraServerConf := strings.Split(serverConf[2], "|")
+
+		for _, item := range extraServerConf {
+			conf := strings.SplitN(item, "=", 2)
+			if len(conf) != 2 {
+				continue
+			}
+
+			key := conf[0]
+			value := conf[1]
+
+			switch key {
+			case "grpc":
+				if value == "true" {
+					transportProtocol = "grpc"
+				}
+			case "servicename":
+				serviceName = value
+			}
 		}
 	}
 
+	var speedLimit uint64
 	if c.SpeedLimit > 0 {
 		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
 	} else {
 		speedLimit = uint64((nodeInfoResponse.SpeedLimit * 1000000) / 8)
 	}
-	// Create GeneralNodeInfo
+
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
 		Port:              port,
 		SpeedLimit:        speedLimit,
 		TransportProtocol: transportProtocol,
-		EnableTLS:         true, // TUIC uses TLS over QUIC
+		EnableTLS:         true,
 		Host:              host,
 		ServiceName:       serviceName,
 	}
