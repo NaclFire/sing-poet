@@ -308,6 +308,14 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Post(path)
+	if res != nil {
+		// 打印 HTTP 状态 + 原始响应（非常关键）
+		fmt.Printf("[API DEBUG] %s status=%d body=%s\n",
+			c.assembleURL(path),
+			res.StatusCode(),
+			string(res.Body()),
+		)
+	}
 	_, err = c.parseResponse(res, path, err)
 	if err != nil {
 		return err
