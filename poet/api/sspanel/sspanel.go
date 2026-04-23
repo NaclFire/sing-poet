@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-resty/resty/v2"
 	"log"
 	"reflect"
 	"regexp"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/go-resty/resty/v2"
 
 	"github.com/sagernet/sing-box/poet/api"
 )
@@ -164,8 +163,8 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 		if isExpired {
 			log.Print("The panel version is expired, it is recommended to update immediately")
 		}
-
-		switch strings.ToLower(c.NodeType) {
+		t := strings.ToLower(strings.TrimSpace(c.NodeType))
+		switch t {
 		case "v2ray":
 			nodeInfo, err = c.ParseV2rayNodeResponse(nodeInfoResponse)
 		case "trojan":
