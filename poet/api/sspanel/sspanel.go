@@ -302,11 +302,9 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	}
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/traffic"
-	fmt.Printf("[API DEBUG] request url=%s nodeId=%d body=%+v\n",
-		c.assembleURL(path),
-		strconv.Itoa(c.NodeID),
-		postData,
-	)
+	// 打印 JSON 格式的请求体
+	bodyBytes, _ := json.Marshal(postData)
+	fmt.Printf("[API DEBUG] request body JSON: %s\n", string(bodyBytes))
 	res, err := c.client.R().
 		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
