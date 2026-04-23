@@ -302,6 +302,11 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	}
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/traffic"
+	fmt.Printf("[API DEBUG] request url=%s nodeId=%d body=%+v\n",
+		c.assembleURL(path),
+		strconv.Itoa(c.NodeID),
+		postData,
+	)
 	res, err := c.client.R().
 		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
