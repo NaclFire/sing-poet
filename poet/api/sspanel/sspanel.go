@@ -165,18 +165,18 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 			log.Print("The panel version is expired, it is recommended to update immediately")
 		}
 
-		switch c.NodeType {
-		case "V2ray":
+		switch strings.ToLower(c.NodeType) {
+		case "v2ray":
 			nodeInfo, err = c.ParseV2rayNodeResponse(nodeInfoResponse)
-		case "Trojan":
+		case "trojan":
 			nodeInfo, err = c.ParseTrojanNodeResponse(nodeInfoResponse)
-		case "Shadowsocks":
+		case "shadowsocks":
 			nodeInfo, err = c.ParseSSNodeResponse(nodeInfoResponse)
-		case "Shadowsocks-Plugin":
+		case "shadowsocks-plugin", "shadowsocks_plugin":
 			nodeInfo, err = c.ParseSSPluginNodeResponse(nodeInfoResponse)
-		case "AnyTLS":
+		case "anytls":
 			nodeInfo, err = c.ParseAnyTlsNodeResponse(nodeInfoResponse)
-		case "TUIC":
+		case "tuic":
 			nodeInfo, err = c.ParseTUICNodeResponse(nodeInfoResponse)
 		default:
 			return nil, fmt.Errorf("unsupported Node type: %s", c.NodeType)
