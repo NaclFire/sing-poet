@@ -174,7 +174,7 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 			nodeInfo, err = c.ParseSSNodeResponse(nodeInfoResponse)
 		case "Shadowsocks-Plugin":
 			nodeInfo, err = c.ParseSSPluginNodeResponse(nodeInfoResponse)
-		case "AnyTls":
+		case "AnyTLS":
 			nodeInfo, err = c.ParseAnyTlsNodeResponse(nodeInfoResponse)
 		case "TUIC":
 			nodeInfo, err = c.ParseTUICNodeResponse(nodeInfoResponse)

@@ -1,13 +1,7 @@
 {
     "log": {
         "disabled": false,
-        "level": "debug",
-        "timestamp": true,
-        "output": "lumberjack",
-        "filename": "/var/log/sing-poet.log",
-        "maxsize": 20,
-        "maxbackups": 5,
-        "maxage": 14
+        "level": "info"
     },
     "dns": {
         "servers": [
@@ -41,18 +35,6 @@
             "sniff": false,
             "sniff_override_destination": false,
             "proxy_protocol": false,
-            "users": [
-                {
-                    "name": "sekai",
-                    "uuid": "059032A9-7D40-4A96-9BB1-36823D848068",
-                    "alterId": 0
-                },
-                {
-                    "name": "beaver",
-                    "uuid": "237032A9-7D40-4A96-9BB1-A4923D848024",
-                    "alterId": 0
-                }
-            ],
             "transport": {
                 "type": "ws",
                 "path": "/vmess"

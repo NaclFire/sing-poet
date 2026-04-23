@@ -1,13 +1,7 @@
 {
   "log": {
     "disabled": false,
-    "level": "info",
-    "timestamp": true,
-    "output": "lumberjack",
-    "filename": "/var/log/sing-poet-tuic.log",
-    "maxsize": 20,
-    "maxbackups": 5,
-    "maxage": 14
+    "level": "info"
   },
   "dns": {
     "servers": [
@@ -31,21 +25,18 @@
       "tag": "tuic-in",
       "listen": "::",
       "listen_port": 10000,
-      "users": [
-        {
-          "name": "sekai",
-          "uuid": "059032A9-7D40-4A96-9BB1-36823D848068",
-          "password": "hello"
-        }
-      ],
-      "congestion_control": "cubic",
+      "congestion_control": "bbr",
       "auth_timeout": "3s",
       "zero_rtt_handshake": false,
       "heartbeat": "10s",
       "tls": {
         "enabled": true,
-        "certificate_path": "/etc/sing-poet/cert.pem",
-        "key_path": "/etc/sing-poet/key.pem"
+        "alpn": [
+          "h3"
+        ],
+        "server_name": "yourdomain.com",
+        "certificate_path": "/etc/sing-poet/cert.crt",
+        "key_path": "/etc/sing-poet/private.key"
       }
     }
   ],
