@@ -303,22 +303,14 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/traffic"
 	// 打印 JSON 格式的请求体
-	bodyBytes, _ := json.Marshal(postData)
-	fmt.Printf("[API DEBUG] request body JSON: %s\n", string(bodyBytes))
+	//bodyBytes, _ := json.Marshal(postData)
+	//fmt.Printf("[API DEBUG] request body JSON: %s\n", string(bodyBytes))
 	res, err := c.client.R().
 		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Post(path)
-	if res != nil {
-		// 打印 HTTP 状态 + 原始响应（非常关键）
-		fmt.Printf("[API DEBUG] %s status=%d body=%s\n",
-			c.assembleURL(path),
-			res.StatusCode(),
-			string(res.Body()),
-		)
-	}
 	_, err = c.parseResponse(res, path, err)
 	if err != nil {
 		return err
@@ -504,6 +496,7 @@ func (c *APIClient) ParseV2rayNodeResponse(nodeInfoResponse *NodeInfoResponse) (
 		Header:            header,
 		EnableREALITY:     enableREALITY,
 		REALITYConfig:     realityConfig,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
@@ -532,6 +525,7 @@ func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *NodeInfoResponse) (*ap
 		ServerKey:         nodeInfoResponse.ServerKey,
 		TransportProtocol: "tcp",
 		CypherMethod:      nodeInfoResponse.Method,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
@@ -597,6 +591,7 @@ func (c *APIClient) ParseSSPluginNodeResponse(nodeInfoResponse *NodeInfoResponse
 		EnableTLS:         enableTLS,
 		Path:              path,
 		Host:              host,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
@@ -668,6 +663,7 @@ func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *NodeInfoResponse) 
 		EnableTLS:         true,
 		Host:              host,
 		ServiceName:       serviceName,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
@@ -738,6 +734,7 @@ func (c *APIClient) ParseAnyTlsNodeResponse(nodeInfoResponse *NodeInfoResponse) 
 		EnableTLS:         true, // AnyTLS uses TLS
 		Host:              host,
 		ServiceName:       serviceName,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
@@ -807,6 +804,7 @@ func (c *APIClient) ParseTUICNodeResponse(nodeInfoResponse *NodeInfoResponse) (*
 		EnableTLS:         true,
 		Host:              host,
 		ServiceName:       serviceName,
+		TrafficRate:       nodeInfoResponse.TrafficRate,
 	}
 
 	return nodeInfo, nil
