@@ -671,67 +671,68 @@ func (c *APIClient) ParseTrojanNodeResponse(nodeInfoResponse *NodeInfoResponse) 
 
 // ParseAnyTlsNodeResponse parse the response for the given node info format
 func (c *APIClient) ParseAnyTlsNodeResponse(nodeInfoResponse *NodeInfoResponse) (*api.NodeInfo, error) {
-	// AnyTLS configuration parsing, similar to Trojan but for AnyTLS protocol
-	var p, host, outsidePort, insidePort, transportProtocol, serviceName string
-	var speedLimit uint64 = 0
 
 	if nodeInfoResponse.RawServerString == "" {
 		return nil, fmt.Errorf("no server info in response")
 	}
-	if result := firstPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		outsidePort = result[1]
-	}
-	if result := secondPortRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		insidePort = result[1]
-	}
-	if result := hostRe.FindStringSubmatch(nodeInfoResponse.RawServerString); len(result) > 1 {
-		host = result[1]
+
+	// host;port;extra_config
+	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
+	if len(serverConf) < 2 {
+		return nil, fmt.Errorf("invalid server format")
 	}
 
-	if insidePort != "" {
-		p = insidePort
-	} else {
-		p = outsidePort
-	}
+	host := serverConf[0]
+	p := serverConf[1]
 
-	parsedPort, err := strconv.ParseInt(p, 10, 32)
+	parsedPort, err := strconv.ParseUint(p, 10, 32)
 	if err != nil {
 		return nil, err
 	}
 	port := uint32(parsedPort)
 
-	serverConf := strings.Split(nodeInfoResponse.RawServerString, ";")
-	extraServerConf := strings.Split(serverConf[1], "|")
-	transportProtocol = "tcp"
-	serviceName = ""
-	for _, item := range extraServerConf {
-		conf := strings.Split(item, "=")
-		key := conf[0]
-		if key == "" {
-			continue
-		}
-		value := conf[1]
-		switch key {
-		case "grpc":
-			transportProtocol = "grpc"
-		case "servicename":
-			serviceName = value
+	// default AnyTLS transport
+	transportProtocol := "tcp"
+	serviceName := ""
+
+	// parse extra config
+	if len(serverConf) > 2 {
+		extraServerConf := strings.Split(serverConf[2], "|")
+
+		for _, item := range extraServerConf {
+			conf := strings.SplitN(item, "=", 2)
+			if len(conf) != 2 {
+				continue
+			}
+
+			key := conf[0]
+			value := conf[1]
+
+			switch key {
+			case "grpc":
+				if value == "true" || value == "1" {
+					transportProtocol = "grpc"
+				}
+			case "servicename":
+				serviceName = value
+			}
 		}
 	}
 
+	var speedLimit uint64
 	if c.SpeedLimit > 0 {
 		speedLimit = uint64((c.SpeedLimit * 1000000) / 8)
 	} else {
 		speedLimit = uint64((nodeInfoResponse.SpeedLimit * 1000000) / 8)
 	}
-	// Create GeneralNodeInfo
+
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
 		Port:              port,
 		SpeedLimit:        speedLimit,
 		TransportProtocol: transportProtocol,
-		EnableTLS:         true, // AnyTLS uses TLS
+		EnableTLS:         true,
 		Host:              host,
 		ServiceName:       serviceName,
 		TrafficRate:       nodeInfoResponse.TrafficRate,
